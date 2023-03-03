@@ -14,8 +14,9 @@
   "contributes": {
     "commands": [
       {
-        "command": "diff-with-format.helloWorld",
-        "title": "Hello World"
+        "command": "diff-with-format.find-formatted-diff-with-head",
+        "title": "Find Formatted Diff With HEAD",
+        "category": "Diff With Format"
       }
     ]
   },

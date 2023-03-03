@@ -1,26 +1,64 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import { GitDiffFormatProvider } from "./provider";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+const DIFF_WITH_FORMAT_SCHEME = "diff-with-format";
+
 export function activate(context: vscode.ExtensionContext) {
+  const disposable1 = vscode.workspace.registerTextDocumentContentProvider(
+    DIFF_WITH_FORMAT_SCHEME,
+    new GitDiffFormatProvider()
+  );
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "diff-with-format" is now active!');
+  const disposable2 = vscode.commands.registerTextEditorCommand(
+    "diff-with-format.find-formatted-diff-with-head",
+    async (textEditor) => {
+      if (textEditor.document.uri.scheme === "file") {
+        const editorUri = textEditor.document.uri;
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('diff-with-format.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from diff-with-format!');
-	});
+        const headUri = vscode.Uri.parse(
+          `${DIFF_WITH_FORMAT_SCHEME}:${editorUri}?head`
+        );
 
-	context.subscriptions.push(disposable);
+        const workTreeUri = vscode.Uri.parse(
+          `${DIFF_WITH_FORMAT_SCHEME}:${editorUri}?worktree`
+        );
+
+        const { editor: headEditor } = await openEditorAndFormat(headUri);
+        const { editor: worktreeEditor } = await openEditorAndFormat(
+          workTreeUri
+        );
+
+        await vscode.commands.executeCommand(
+          "vscode.diff",
+          headEditor.document.uri,
+          worktreeEditor.document.uri
+        );
+      } else {
+        vscode.window.showInformationMessage("Can only be run on an open file");
+      }
+    }
+  );
+
+  context.subscriptions.push(disposable2, disposable1);
 }
 
-// This method is called when your extension is deactivated
+async function openEditorAndFormat(uri: vscode.Uri) {
+  const document = await vscode.workspace.openTextDocument(uri);
+  const editor = await vscode.window.showTextDocument(document);
+
+  const textEdits: vscode.TextEdit[] = await vscode.commands.executeCommand(
+    "vscode.executeFormatDocumentProvider",
+    document.uri
+  );
+
+  const workspaceEdit = new vscode.WorkspaceEdit();
+  workspaceEdit.set(document.uri, textEdits);
+  let success = await vscode.workspace.applyEdit(workspaceEdit);
+
+  return {
+    editor,
+    formatted: success,
+  };
+}
+
 export function deactivate() {}
